@@ -1,0 +1,63 @@
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches:
+      - main
+      - feature/AmazingFeature
+  pull_request:
+    branches:
+      - main
+      - feature/AmazingFeature
+
+env: 
+  DOCKER_USERNAME: ${{ secrets.DOCKER_USERNAME }}
+  DOCKER_PASSWORD: ${{ secrets.DOCKER_PASSWORD }}
+  SERVER_HOST: ${{ secrets.SERVER_HOST }}
+  SERVER_USER: ${{ secrets.SERVER_USER }}
+  SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Run tests
+        run: pytest
+
+  deploy:
+    needs: test
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/feature/AmazingFeature' || github.ref == 'refs/heads/main'
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Build and Push Docker Image
+        run: |
+          echo "${{ env.DOCKER_PASSWORD }}" | docker login -u "${{ env.DOCKER_USERNAME }}" --password-stdin
+          docker build -t ${{ env.DOCKER_USERNAME }}/fastapi-app .
+          docker tag ${{ env.DOCKER_USERNAME }}/fastapi-app ${{ env.DOCKER_USERNAME }}/fastapi-app:latest
+          docker push ${{ env.DOCKER_USERNAME }}/fastapi-app:latest
+
+      - name: Deploy to Server
+        uses: appleboy/ssh-action@v0.1.10
+        with:
+          host: ${{ env.SERVER_HOST }}
+          username: ${{ env.SERVER_USER }}
+          key: ${{ env.SSH_PRIVATE_KEY }}
+          script: |
+            docker pull ${{ env.DOCKER_USERNAME }}/fastapi-app:latest
+            docker stop fastapi-app || true
+            docker rm fastapi-app || true
+            docker run -d -p 8000:8000 --name fastapi-app ${{ env.DOCKER_USERNAME }}/fastapi-app:latest
