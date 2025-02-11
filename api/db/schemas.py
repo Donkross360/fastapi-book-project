@@ -1,7 +1,7 @@
 from enum import Enum
 from typing import OrderedDict
 
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 
 
 class Genre(str, Enum):
@@ -27,6 +27,8 @@ class Book(BaseModel):
     author: str
     publication_year: int
     genre: Genre
+
+    model_config = ConfigDict(extra="forbid")
 
 
 class InMemoryDB:
