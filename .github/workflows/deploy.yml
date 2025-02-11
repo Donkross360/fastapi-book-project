@@ -1,0 +1,46 @@
+name: Deploy FastAPI App
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  deploy:
+    name: deploy
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Set up SSH Key
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_rsa
+          chmod 600 ~/.ssh/id_rsa
+          ssh-keyscan -H ${{ secrets.SERVER_HOST }} >> ~/.ssh/known_hosts
+
+      - name: Deploy to EC2
+        run: |
+          ssh ubuntu@${{ secrets.SERVER_HOST }} << 'EOF'
+            set -e  # Exit immediately on error
+            
+            # Define working directory
+            APP_DIR="/home/ubuntu/app"
+
+            # Clone repo if not exists, else pull latest changes
+            if [ ! -d "$APP_DIR/.git" ]; then
+              git clone https://github.com/Donkross360/fastapi-book-project.git $APP_DIR
+            fi
+            cd $APP_DIR
+            git pull origin main
+
+            # Stop and remove old container (if running)
+            docker stop fastapi-app || true
+            docker rm fastapi-app || true
+
+            # Build and run the new container
+            docker build -t fastapi-app .
+            docker run -d -p 8000:8000 --name fastapi-app fastapi-app
+
+            # Restart Nginx to apply any config changes
+            sudo systemctl restart nginx
+          EOF
