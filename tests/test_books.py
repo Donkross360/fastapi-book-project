@@ -4,7 +4,7 @@ from tests import client
 def test_get_all_books():
     response = client.get("/books/")
     assert response.status_code == 200
-    assert len(response.json()) == 3
+    assert len(response.json()) == 5
     assert isinstance(response.json(), dict)
     assert all(isinstance(k, str) and isinstance(v, dict) for k, v in response.json().items())
 
